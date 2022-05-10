@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 module.exports = {
   custom_tester_1: {
     mnemonic:
