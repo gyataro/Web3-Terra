@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, BankMsg, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
@@ -17,7 +17,7 @@ pub fn migrate(
   _env: Env,
   _msg: MigrateMsg
 ) -> StdResult<Response> {
-  
+
     Ok(Response::default())
 }
 
@@ -60,6 +60,7 @@ pub fn execute(
   match msg {
     // `score` is being passing in, we'll pass that forward
     ExecuteMsg::UpsertScore { score } => try_upsert_score(deps, info, score),
+    ExecuteMsg::Send { addr, amount } => send(deps, info, addr, amount),
   }
 }
 
@@ -86,6 +87,38 @@ fn try_upsert_score(
     .add_attribute("method", "upsert")
     .add_attribute("player", info.sender)
     .add_attribute("score", score.to_string()))
+}
+
+// Send UST from smart contract to an EOA
+fn send(
+  deps: DepsMut,
+  info: MessageInfo,
+  addr: String,
+  amount: Uint128
+) -> Result<Response, ContractError> {
+
+  // Only contract owner can reward players
+  let state = STORAGE.load(deps.storage)?;
+
+  if state.owner != info.sender
+  {
+    return Err(ContractError::Unauthorized {}); 
+  }
+
+  let msg = CosmosMsg::Bank(BankMsg::Send {
+    to_address: addr.clone(),
+    amount: vec![
+      Coin {
+        denom: "uusd".to_string(),
+        amount: amount,
+    }],
+  });
+
+  Ok(Response::new()
+    .add_attribute("method", "send")
+    .add_attribute("player", addr.to_string())
+    .add_attribute("amount", amount.to_string())
+    .add_message(msg))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
